@@ -38,27 +38,6 @@ class CommonUrlSearch(object):
     'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 
     
-    '''
-    User_Agent = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'
-    url = "http://www.google.com/search?hl=en&safe=off&q=Monkey"
-    headers={'User-Agent':user_agent,} 
-    request=urllib2.Request(url,None,headers) #The assembled request 
-    response = urllib2.urlopen(request) 
-    data = response.read() # The data u need
-    '''
-    
-    #page = request.get(url, headers = headers) 
-    #pageReq = request.Request(url, headers = headers)
-    #with request.urlopen(pageReq) as resp:
-    #  page_content = resp.read()
-    #  print(page_content)
-    #  print("@@@"*20)
-    #page_content = page.content 
-    #page_content = page.read()
-    
-    #html = gzip.GzipFile(fileobj=io.StringIO(str(resp.read())), mode="r")
-    #html = html.read().decode('utf-8')
-    ##self.myinit(url)
     self.myinit(url, enc, True)
     
     # html codes
@@ -79,6 +58,44 @@ class CommonUrlSearch(object):
   def getUrl(self):
     return self._url
 
+  def getCharset(self):
+    '''
+    This has to be called after the soup object is created.
+    
+    It returns the expected charset string e.g., "big5", "utf-8", etc.
+    
+    <meta http-equiv="Content-Type" content="text/html; charset=big5">
+    
+    methods:
+    (1) string find s.find(...)
+    '''
+    strCharsetPtn0 = ' charset='
+    strCharsetPtn1 = '"'
+    lenCharsetPtn0 = len(strCharsetPtn0)
+    lenCharsetPtn1 = len(strCharsetPtn1)
+    
+    blkHeader  = str(self.getSoup().head.prettify())
+    print("blkHeader: \n%s\n\n" % (blkHeader))
+            
+    indxPtn0   = blkHeader.find(strCharsetPtn0)
+    strRemain0 = blkHeader[indxPtn0 + lenCharsetPtn0:]
+    indxPtn1   = strRemain0.find(strCharsetPtn1)
+    indxAnchorPtn0 = indxPtn0 + lenCharsetPtn0
+    indxAnchorPtn1 = indxAnchorPtn0 + indxPtn1
+    strCharset     = blkHeader[indxAnchorPtn0:indxAnchorPtn1]
+
+    '''
+    print("indxPtn0[%d]       = > charset< loc." % (indxPtn0))
+    print("indxPtn1[%d]       = strRemain0 searched loc. for strCharsetPt1" % (indxPtn1))
+    print("indxAnchorPtn0[%d] = leading index of target strCharset + len" % (indxAnchorPtn0))
+    print("indxAnchorPtn1[%d] = indxAnchorPtn0 + indxPtn1" % ( indxAnchorPtn1))
+    '''
+
+    print("\n\n    ~~~~~~~ Searched Charset = >>>%s<<< ~~~~~~~" % (strCharset))
+    
+    return strCharset
+
+
     
   def invalidTitle(self, strTitle):
     self._rePunct.search("")
@@ -90,8 +107,8 @@ class CommonUrlSearch(object):
     req.add_header('Accept-encoding', 'gzip')
     response = request.urlopen(req)
     html = response.read()
-    #gzipped = response.headers.get('Accept-Encoding') #'Content-Encoding')
-
+    
+    #print(">>>>>>><<<<<<<\n response.header = \n\n%s\n\n >>>>>>><<<<<<<\n" % (response.headers))  #.getparam('charset')))
 
     if response.info().get('Content-Encoding') == 'gzip': 
       print("ALERT :: URL PAGE COMPRESSED!!!\n%s" % (url))
@@ -101,25 +118,36 @@ class CommonUrlSearch(object):
     if forcedZip or gzipped:
       html = zlib.decompress(html, 16+zlib.MAX_WBITS)
     ###print(html)
+    
+    # Try to get Charset here
+    self._soup = BeautifulSoup(html, "html.parser")
+    charset = self.getCharset()
+    print("\n\n~~~ HERE HERE ~~~ >>>%s<<<\n\n" % (charset))
+    
+    '''
     if enc == "":
       print("### utf-8 ###")
       self._html = html.decode("utf-8", "ignore")
     else:
-      print("### %s ###" % (enc))
-      self._html = html.decode(enc, "ignore")
+    '''
+    if enc != charset:
+      print("enc = %s" % (enc))
+      print("WARNING!!!WARNING!!! \ndetected charset is [%s] and forced set to <%s>." % (charset, enc))
+      print("Overwrite user's choice and set to <%s>\n\n" % (charset))
+      self._html = html #.decode(charset, "ignore")
 
     print("@@@@@@@ myinit @@@@@@@ %s" % (url))
     ###print(self._html)
     self._soup = BeautifulSoup(self._html, "html.parser")
     strMark = "¥¥¥"*6 + " myinit()..print _soup.body " + "¥¥¥"*6
     
-    '''
+
     print(strMark)
     print(strMark)
-    print(self._soup.body)
+    print(self._soup.body.prettify())
     print(strMark)
     print(strMark)
-    '''
+    
 
     
   def collectBody(self, upperTags = False, stripTags = True):
@@ -211,29 +239,6 @@ class CommonUrlSearch(object):
           #strTgt  = strTemp[indxStart:indxStart*2]
           strTgt1 = strTgt[1:]
           #print("333:: @@@ @@@strTgt[%s], strTgt1[%s]" % (strTgt, strTgt1))
-          '''
-          >>>--<meta http-equiv=Content-Type content="text/html; charset=big5"><title>穩固根基  第二十七課 以色列的不信神的1/4f判及拯救</title><style>
-
-          REM:: remove:<meta http-equiv=Content-Type content="text/html; charset=big5">
-          RES:: <title>穩固根基 第二十七課 以色列的不信神的1/4f判及拯救</title><style>
-          ------------------
-
-          Enter any key to proceed
-          ------------------
-
-          >>>--<title>穩固根基 第二十七課 以色列的不 信神的1/4f判及拯救</title><style>
-
-          REM:: remove:<title>
-          RES:: 穩固根基 第二十七課 以色列的不信神的1/4f判及拯救</title><style>
-          ------------------
-          Enter any key to proceed
-          ------------------
-
-          >>>--穩固根基 第二十七課 以色列的不信神的1/4f判及拯救</title><style>
-
-          <…<…> Error::</title><style>
-          Enter any key to proceed
-          '''
           if strTgt1.find(tagStart) != -1:   # found <…<…> do nothing
             print("<…<…> Error::%s" % (strTgt))
             lpCondition = False
