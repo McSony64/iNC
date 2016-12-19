@@ -625,4 +625,3 @@ class UrlNewsBase ():
       self.printSoupBodyByItem(fd)
       print("...,,,"*7)
       print("\n")
-      
