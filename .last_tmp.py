@@ -11,23 +11,41 @@ import zlib
 import unicodedata
 import time
 from urlsearch import *
+gDebug = True    
+    
+class CGNNabudantGrace(CommonUrlSearch):
+  def __init__(self, url):
+    super().__init__(url)
+    self.myRevInit(url)
+    self._dctUrlSubject = {}
+    
+    # for getting the url address : <a href="..."
+    self._urlLeadingPtn  = '<a href="'
+    self._urlTrailingPtn = '"'
+    # for getting the subject title string ">...</a>
+    self._subjectLeadingPtn = '">'
+    self._subjectTrailingPtn = '</a>'
+    self._title = ""
+    '''
+    <html>
+    <TITLE>豐盛的恩典</TITLE>
+
+    http://www.ccgn.nl/boeken02/fsed/index.htm
+    
+    '''
+    self._fBase     = "/storage/emulated/0/Documents/ccgn_"
+    self._fExt      = ".txt"
+    self._urlBase   = "http://www.ccgn.nl/boeken02/fsed/"
     
     
-class CGNNethic(CommonUrlSearch):
-  def __init__(self, url, enc = ""):
-    super().__init__(url, enc)
-    self.myInit(url, "utf-8", True)
-    self.dct = {}
-    
-    
-  def myInit(self, url, enc = "", forcedZip = False):
-    print("myInit(url[%s])" % (url))
-    self.myinit(url, enc, forcedZip)
+  def myRevInit(self, url):
+    print("myRevInit(url[%s])" % (url))
+    self.myRevinit(url)
         
     
   def getOnePage(self, url, fname):
     print("collecting %s ...\n\n" % (url))
-    self.myInit(url, "utf-8", True)
+    self.myRevInit(url)
     strTgt = self.collectBody()
     fd = open(fname,"w")
     fd.write(strTgt)
@@ -36,37 +54,8 @@ class CGNNethic(CommonUrlSearch):
     fd.close()
     
         
-  def collectEthic(self):
-    '''
-    <html>
-    <title> 靈曆集光 </title>
-    <meta http-equiv="Content-Type" content="text/html; charset=big5">
-
-    lldt01.htm ... lldt14.htm
-    list.htm, zx.htm lx.htm, xx.htm, sx.htm
     
-    http://www.ccgn.nl/boeken02/lldt/list.htm
     
-    '''
-    fBase     = "/storage/emulated/0/Documents/ccgn_靈曆集光_"
-    fExt      = ".txt"
-    urlBase   = "http://www.ccgn.nl/boeken02/lljg/"
-    urlPrefix = "lldt"
-    urlSuffix = ".htm"
-    lstOthers = ["pre1", "int", "thank"]
-    
-    for i in range(1,14):
-      strIndx = str(i).zfill(2)
-      url = urlBase + urlPrefix + strIndx + urlSuffix
-      fname = fBase + strIndx + fExt
-      self.getOnePage(url, fname)
-    
-    # get others: if any
-    for item in lstOthers:
-      url = urlBase + item + urlSuffix
-      fname = fBase + item + fExt
-      self.getOnePage(url, fname)
-      
   def nextUrl(self, strSrc):
     strTemp = strSrc
     indxLead  = 0
@@ -84,7 +73,7 @@ class CGNNethic(CommonUrlSearch):
       else:
         return "", strTemp  # not found
         
-  def titleAfterUrl(self, strSrc):
+  def subjectAfterUrl(self, strSrc):
     '''
     Must called after nextUrl()
     '''
@@ -92,12 +81,12 @@ class CGNNethic(CommonUrlSearch):
     strTemp = strSrc
     indxLead  = 0
     indxTrail = 0
-    indxLead = strTemp.find( self._titleLeadingPtn )
+    indxLead = strTemp.find( self._subjectLeadingPtn )
     if indxLead == -1:
       return "", strTemp  # not found
     else:
-      strTemp1 = strTemp[ indxLead + len( self. _titleLeadingPtn ):]
-      indxTrail = strTemp1.find( self. _titleTrailingPtn )
+      strTemp1 = strTemp[ indxLead + len( self._subjectLeadingPtn ):]
+      indxTrail = strTemp1.find( self._subjectTrailingPtn )
       if indxTrail != -1:   # found
         strUrl  = strTemp1[ :indxTrail ]
         strTemp = strTemp1[ indxTrail: ]
@@ -106,68 +95,82 @@ class CGNNethic(CommonUrlSearch):
         return "", strTemp  # not found    
     
   def getAllLinks(self):
-    allLinks = self.getSoup().find_all('a')    
-    print("num links = %d" % (len(allLinks)))
+    allLinks = self.getSoup().find_all('a')
+    if gDebug:
+      print("num links = %d" % (len(allLinks)))
     thIndx = 1
     for a in allLinks:
-      print("[%d]th url = [%s]" % (thIndx, str(a)))
+      strA = str(a)
+      strA = self.removeWhiteSpaces(strA, ["\n", "\t"])
+      if gDebug:
+        print("[[[%dth]]] url = [%s]" % (thIndx, strA))
+      strUrl, strRes = self.nextUrl(strA)
+      strSub, strRes = self.subjectAfterUrl(strRes)
+      strSub = self.removeWhiteSpaces(strSub)
+      if gDebug:
+        print("[[[%d]]]:: Url[%s], Subject[%s]" % (thIndx, strUrl, strSub))
+      self._dctUrlSubject[strUrl] = strSub
       thIndx += 1
       
-  def collectEthicAdv(self):
-    # for getting the url address : <a href="..."
-    self._urlLeadingPtn  = '<a href="'
-    self._urlTrailingPtn = '"'
-    # for getting the subject title string ">...</a>
-    self._titleLeadingPtn = '">'
-    self._titleTrailingPtn = '</a>'
+  def removeWhiteSpaces(self, strSrc, lst2remove = []):
+    if lst2remove == []:
+      lstTarget = ["\n", "\t", "\r", " "]
+      for item in lstTarget:
+        strSrc = strSrc.replace(item, "")
+    else:
+      for item in lst2remove:
+        strSrc = strSrc.replace(item, "")
+    return strSrc
+      
+  def collectAdv(self, lstExclude = []):
+    gDebug = False
+    print("------- collectAdv() -------")
+    self._title = self.getTitle()    
+    self.getAllLinks()   # get the urls and associated title/subject
     
-    strTemp = self.getHtml()
-    # check urlBase
-    
-    moreSearch = True
-    while moreSearch:
-      url, strTemp = self.nextUrl( strTemp )
-      if url == "":
-        print("done: no more urls found")
-        moreSearch = False
+    keys = self._dctUrlSubject.keys()
+    for key in keys:
+      value = self._dctUrlSubject[key]
+      '''
+      print("value[%s]" % (value))
+      if value == "返回":
+        print("found found 返回:::", lstExclude)
+        if value in lstExclude:
+          print("Yes Yes in lstExclude[%s]" % (value))
+      '''
+      if not(value in lstExclude):
+        ###print("Writing... dctUrlSubject[%s] = %s\n" % (key, self._dctUrlSubject[key]))
+
+        # "http://www.ccgn.nl/boeken02/lljg/" + "f-lljg-401.htm"
+        url = self._urlBase + key   
+        # "/storage/emulated/0/Documents/ccgn_" + strTitle + "_" + strSubject + ".txt"
+        indxDot = key.find(".")
+        fPrefix = key[:indxDot] + "_"
+        fname = self._fBase + self._title + "_" + fPrefix + self._dctUrlSubject[key] + self._fExt
+        fname = self.removeWhiteSpaces(fname)
+        if gDebug:
+          print("url[%s] ===> fname[%s]" % (url, fname))    
+        else:
+          self.getOnePage(url, fname)
       else:
-        print("\n\nSearched url[%s]\n" % (url))
-        
-      print("->->->->=>=>=>remaining str [%s]:::>>>%d<<<" % (strTemp[:50], len(strTemp)))
-        
-      ttl, strTemp = self.titleAfterUrl( strTemp )
-      if ttl == "":
-        print("done: no more titles found")
-        moreSearch = False
-      else:
-        print("\nSearched title[%s]\n\n" % (ttl))
-     
-    
-    
+        print("!!!!!!!>>> value[%s] in lstExclude[]" % (value))
+        continue
     
     
 
 def main():
   '''
-  www.ccgn.nl/boeken02/lljg/right.htm
-  f-lljg-101.htm
-  pre1.htm, int.htm, thank.htm
-  101.htm - 104.htm
-  201.htm - 211.htm
-  301.htm - 312.htm
-  401.htm - 411.htm
-  501.htm - 509.htm
-  601.htm - 605.htm
-  
   '''
-  url = "http://www.ccgn.nl/boeken02/lljg/right.htm"
+  url = "http://www.ccgn.nl/boeken02/fsed/index.htm"
 
-  trinity = CGNNethic(url)  
-  #trinity.collectEthicAdv()
-  trinity.getAllLinks()
+  aGrace = CGNNabudantGrace(url)  
+  ###aGrace.getAllLinks()
+  lstExclude = ["返回"]
+  aGrace.collectAdv(lstExclude)
   
-  ###strCS = trinity.getCharset()
-  ###print("Charset = %s" % (strCS))
+  strCS = aGrace.getCharset()
+  print("Charset = %s" % (strCS))
+  aGrace.getTitle()
 
 if __name__ == "__main__":
   main()

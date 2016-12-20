@@ -26,7 +26,7 @@ class CommonUrlSearch(object):
   '''
   
 
-  def __init__(self, url, enc = ""):
+  def __init__(self, url):
     """ Scrape the given url for match schedule """ 
 
     self._headers = {#'Accept':'text/css,*/*;q=0.1', 
@@ -38,7 +38,7 @@ class CommonUrlSearch(object):
     'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 
     
-    self.myinit(url, enc, True)
+    self.myRevinit(url)
     
     # html codes
     self._ptnHtmlCode = '&#[0-9]+[;]'
@@ -95,13 +95,22 @@ class CommonUrlSearch(object):
     
     return strCharset
 
+  def getTitle(self):
+    strTitle = str(self.getSoup().title)
+    self._leadingTitlePtn  = "<title>"
+    self._trailingTitlePtn = "</title>"
+    indxLead  = strTitle.find(self._leadingTitlePtn) + len(self._leadingTitlePtn)
+    indxTrail = strTitle.find(self._trailingTitlePtn)
+    strTitle  = strTitle[indxLead:indxTrail]
+    print("Page title[%s]" % (strTitle))
 
+    return strTitle
     
   def invalidTitle(self, strTitle):
     self._rePunct.search("")
     
-  def myinit(self, url, enc = "", forcedZip = False):
-    print("myinit()::myinit()")
+  def myRevinit(self, url, enc = "", forcedZip = False):
+    print("myRevinit()::myRevinit()")
     self._url = url
     req = request.Request(url, None, self._headers)
     req.add_header('Accept-encoding', 'gzip')
@@ -113,13 +122,16 @@ class CommonUrlSearch(object):
     if response.info().get('Content-Encoding') == 'gzip': 
       print("ALERT :: URL PAGE COMPRESSED!!!\n%s" % (url))
       gzipped = True
+    else:
+      gzipped = False
 
     #print("gzipped::", gzipped)
-    if forcedZip or gzipped:
+    if gzipped:
       html = zlib.decompress(html, 16+zlib.MAX_WBITS)
     ###print(html)
     
     # Try to get Charset here
+    charset = ""
     self._soup = BeautifulSoup(html, "html.parser")
     charset = self.getCharset()
     print("\n\n~~~ HERE HERE ~~~ >>>%s<<<\n\n" % (charset))
@@ -130,24 +142,30 @@ class CommonUrlSearch(object):
       self._html = html.decode("utf-8", "ignore")
     else:
     '''
-    if enc != charset:
+    if charset != "":
       print("enc = %s" % (enc))
       print("WARNING!!!WARNING!!! \ndetected charset is [%s] and forced set to <%s>." % (charset, enc))
       print("Overwrite user's choice and set to <%s>\n\n" % (charset))
-      self._html = html #.decode(charset, "ignore")
+      if charset in ["utf-8", "utf8", "UTF8", "UTF-8"]:
+        self._html = html   # avoid double decoding by BS
+      else:
+        self._html = html.decode(charset, "ignore")
+    else:
+      print("@@@@@@@ ALERT @@@@@@")
+      print("Charset not found\n\n")
 
-    print("@@@@@@@ myinit @@@@@@@ %s" % (url))
+    print("@@@@@@@ myRevinit @@@@@@@ %s" % (url))
     ###print(self._html)
     self._soup = BeautifulSoup(self._html, "html.parser")
-    strMark = "¥¥¥"*6 + " myinit()..print _soup.body " + "¥¥¥"*6
     
-
+    '''
+    strMark = "¥¥¥"*6 + " myinit()..print _soup.body " + "¥¥¥"*6    
     print(strMark)
     print(strMark)
     print(self._soup.body.prettify())
     print(strMark)
     print(strMark)
-    
+    '''
 
     
   def collectBody(self, upperTags = False, stripTags = True):
